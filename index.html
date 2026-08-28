@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FMS Client Dashboard</title>
+    <title>Client Dashboard</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
@@ -1372,7 +1372,7 @@
         <div class="sidebar-logo">
           <div class="logo-icon">⚡</div>
           <div>
-            <h2>FMS Portal</h2>
+            <h2>Client Dashboard</h2>
             <span>Admin Panel</span>
           </div>
         </div>
@@ -1676,7 +1676,7 @@
           >
             ⚡
           </div>
-          <h1>FMS Portal</h1>
+          <h1>Client Dashboard</h1>
         </div>
         <div class="portal-user">
           <div class="avatar" id="p-av" style="background: var(--accent-blue)">
@@ -2167,23 +2167,50 @@
         return extraDocs;
       }
 
-      // ── DELIVERY CHALLAN HELPERS ──────────────────────
-      function getClientChallans(client) {
-        if (!challanRows.length || !client) return [];
-        const norm = (s) => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-        const projName = norm(client.project || client.name);
-        const clientName = norm(client.name);
+   
+function getClientChallans(client) {
+  if (!challanRows.length || !client) return [];
+  const norm = (s) => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const projName = norm(client.project || client.name);
+  const clientName = norm(client.name);
 
-        return challanRows.filter((r) => {
-          const rowVal = norm(
-            gcol(r, "ProjectName", "Project Name", "Project", "Client", "Client Name") || Object.values(r).join(" ")
-          );
-          return (
-            (projName && rowVal.includes(projName)) ||
-            (clientName && rowVal.includes(clientName))
-          );
-        });
+  const filtered = challanRows.filter((r) => {
+    const rowVal = norm(
+      gcol(r, "ProjectName", "Project Name", "Project", "Client", "Client Name") || Object.values(r).join(" ")
+    );
+    return (
+      (projName && rowVal.includes(projName)) ||
+      (clientName && rowVal.includes(clientName))
+    );
+  });
+
+  return filtered.sort((a, b) => {
+    const dateAStr = gcol(a, "Date", "Challan Date", "DC Date");
+    const dateBStr = gcol(b, "Date", "Challan Date", "DC Date");
+
+    const parseDateObj = (dStr) => {
+      if (!dStr) return new Date(0);
+      const parts = dStr.trim().split(/[/.-]/);
+      if (parts.length === 3) {
+        let p1 = parseInt(parts[0], 10);
+        let p2 = parseInt(parts[1], 10);
+        let year = parseInt(parts[2], 10);
+
+        if (p1 > 12) {
+          return new Date(year, p2 - 1, p1);
+        }
+        return new Date(year, p1 - 1, p2);
       }
+      return new Date(dStr);
+    };
+
+    const dateA = parseDateObj(dateAStr);
+    const dateB = parseDateObj(dateBStr);
+
+    return dateB - dateA;
+  });
+}
+  
 
       function challanListHtml(challans, opts) {
         const adminMode = !!(opts && opts.adminMode);
@@ -2253,7 +2280,6 @@
           .join("");
       }
 
-      // ── DOCUMENT LINK HELPERS ─────────────────────────
       function resolveDocUrl(raw) {
         if (!raw) return "";
         const s = raw.trim();
@@ -2314,7 +2340,6 @@
         return docs;
       }
 
-      // ── COLUMN LOOKUP ─────────────────────────────────
       function gcol(obj, ...keys) {
         for (const k of keys) {
           for (const ok of Object.keys(obj)) {
@@ -2328,7 +2353,6 @@
         return "";
       }
 
-      // ── BUILD CLIENT ──────────────────────────────────
       const COLORS = [
         "#2563EB", "#10B981", "#8B5CF6", "#F59E0B",
         "#EF4444", "#06B6D4", "#EC4899", "#F97316",
@@ -2374,7 +2398,6 @@
         return projectRows.map((r, i) => buildClient(r, i));
       }
 
-      // ── LOGO HELPERS ──────────────────────────────────
       function resolveLogoUrl(raw) {
         if (!raw) return "";
         const s = raw.trim();
@@ -2418,43 +2441,23 @@
         return `<div class="logo-fallback" style="background:${col}22;color:${col}">${initials(client.name)}</div>`;
       }
 
-      // ── GET FMS STEPS FOR A CLIENT ────────────────────
-      function getFmsSteps(client) {
-        const normalize = (s) =>
-          (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+function getFmsSteps(client) {
+        const normalize = (s) => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
         const projName = normalize(client.project || client.name);
         if (!projName || !FMS_DATA_ROWS.length) return [];
 
-        let matched = FMS_DATA_ROWS.filter((r) => normalize(r[1]) === projName);
+      
+        let matched = FMS_DATA_ROWS.filter((r) => {
+          const rp = normalize(r[1]);
+          return rp && (rp === projName || rp.includes(projName) || projName.includes(rp));
+        });
 
+        
         if (!matched.length) {
-          matched = FMS_DATA_ROWS.filter((r) => {
-            const rp = normalize(r[1]);
-            return rp && (rp.includes(projName) || projName.includes(rp));
-          });
+          return [];
         }
 
-        if (!matched.length) {
-          const clientName = normalize(client.name);
-          matched = FMS_DATA_ROWS.filter((r) => {
-            const rp = normalize(r[1]);
-            return rp && (rp.includes(clientName) || clientName.includes(rp));
-          });
-        }
-
-        if (!matched.length) {
-          const words = projName.split(/\s+/).filter((w) => w.length > 3);
-          matched = FMS_DATA_ROWS.filter((r) => {
-            const rp = normalize(r[1]);
-            const hits = words.filter((w) => rp.includes(w));
-            return hits.length >= 2;
-          });
-        }
-
-        if (!matched.length && FMS_DATA_ROWS.length === 1)
-          matched = FMS_DATA_ROWS;
-        if (!matched.length) return [];
         return getFmsStepsForRow(matched[0]);
       }
 
@@ -2465,7 +2468,6 @@
         return "pending";
       }
 
-      // ── HTML HELPERS ──────────────────────────────────
       function esc(s) {
         return String(s || "")
           .replace(/&/g, "&amp;")
@@ -2564,42 +2566,62 @@
       }
 
       function allDocsHtml(client, steps, opts) {
-        const adminMode = !!(opts && opts.adminMode);
-        
-        const projectDocs = extractProjectDocs(client && client.docs).map((d) => ({
-          ...d,
-          category: "Project Details"
-        }));
+  const adminMode = !!(opts && opts.adminMode);
+  
+  const projectDocs = extractProjectDocs(client && client.docs).map((d) => ({
+    ...d,
+    category: "Project Details Documents"
+  }));
 
-        const specificFmsDocs = extractOtherFmsDocs(client);
+  const specificFmsDocs = extractOtherFmsDocs(client);
 
-        const stepDocs = [];
-        (steps || []).forEach((s) =>
-          (s.docs || []).forEach((d) => {
-            if (d.name) stepDocs.push({ ...d, step: s.name });
-          })
-        );
+  const stepDocs = [];
+  (steps || []).forEach((s) =>
+    (s.docs || []).forEach((d) => {
+      if (d.name) stepDocs.push({ ...d, step: s.name });
+    })
+  );
 
-        const combinedOtherDocs = [...projectDocs, ...specificFmsDocs];
+  const groupedDocs = {};
 
-        if (!combinedOtherDocs.length && !stepDocs.length)
-          return '<div class="empty-state"><div class="ei">📂</div><p>No documents found for this client.</p></div>';
 
-        let html = "";
+  projectDocs.forEach(doc => {
+    const cat = doc.category || "General Documents";
+    if (!groupedDocs[cat]) groupedDocs[cat] = [];
+    groupedDocs[cat].push(doc);
+  });
 
-        if (combinedOtherDocs.length) {
-          html += '<div class="doc-section-label" style="font-weight:700;margin-bottom:10px;color:var(--accent-blue-light)">📁 Project Upload Documents</div>';
-          html += docsListHtml(combinedOtherDocs, { adminMode });
-          html += '<div style="margin-top:20px;"></div>';
-        }
 
-        html += '<div class="doc-section-label" style="font-weight:700;margin-bottom:10px">📋 Step Timeline Documents</div>';
-        html += stepDocs.length
-          ? docsListHtml(stepDocs, { adminMode })
-          : '<div class="empty-state" style="padding:15px"><p style="font-size:12px">No documents listed in FMS steps.</p></div>';
+  specificFmsDocs.forEach(doc => {
+    // Header name chi Case Formatting (Capitalize First Letters)
+    let cat = doc.category ? doc.category.replace(/\b\w/g, l => l.toUpperCase()) : "Other Documents";
+    if (!groupedDocs[cat]) groupedDocs[cat] = [];
+    groupedDocs[cat].push(doc);
+  });
 
-        return html;
-      }
+  if (!Object.keys(groupedDocs).length && !stepDocs.length) {
+    return '<div class="empty-state"><div class="ei">📂</div><p>No documents found for this client.</p></div>';
+  }
+
+  let html = "";
+
+
+  for (const [categoryName, docList] of Object.entries(groupedDocs)) {
+    if (docList.length > 0) {
+      html += `<div class="doc-section-label" style="font-weight:700; margin-bottom:10px; color:var(--accent-orange); text-transform: uppercase;">📁 ${esc(categoryName)}</div>`;
+      html += docsListHtml(docList, { adminMode });
+      html += '<div style="margin-top:20px;"></div>';
+    }
+  }
+
+
+  html += '<div class="doc-section-label" style="font-weight:700; margin-bottom:10px; color:var(--text-primary); text-transform: uppercase;">📋 Step Timeline Documents</div>';
+  html += stepDocs.length
+    ? docsListHtml(stepDocs, { adminMode })
+    : '<div class="empty-state" style="padding:15px"><p style="font-size:12px">No documents listed in FMS steps.</p></div>';
+
+  return html;
+}
 
       function infoGridHtml(c) {
         return [
